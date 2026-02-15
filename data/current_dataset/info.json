@@ -1,0 +1,46 @@
+{
+    "task_type": "binclass",
+    "n_num_features": 6,
+    "n_cat_features": 2,
+    "numeric_features": [
+        "age",
+        "hypertension",
+        "heart_disease",
+        "bmi",
+        "HbA1c_level",
+        "blood_glucose_level"
+    ],
+    "categorical_features": [
+        "gender",
+        "smoking_history"
+    ],
+    "feature_names": [
+        "gender",
+        "age",
+        "hypertension",
+        "heart_disease",
+        "smoking_history",
+        "bmi",
+        "HbA1c_level",
+        "blood_glucose_level"
+    ],
+    "cat_mappings": {
+        "gender": {
+            "0": "Female",
+            "1": "Male",
+            "2": "Other"
+        },
+        "smoking_history": {
+            "0": "No Info",
+            "1": "current",
+            "2": "ever",
+            "3": "former",
+            "4": "never",
+            "5": "not current"
+        }
+    },
+    "target_mapping": {
+        "0": "0",
+        "1": "1"
+    }
+}
