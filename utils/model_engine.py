@@ -1,6 +1,7 @@
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor, GradientBoostingClassifier, GradientBoostingRegressor
 from sklearn.linear_model import LogisticRegression, LinearRegression
-from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor, export_text
+from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, mean_squared_error, r2_score
 import pandas as pd
 import numpy as np
@@ -35,9 +36,11 @@ def train_model(X_train, y_train, X_val, y_val, model_type="Random Forest", task
         elif model_type == "Logistic Regression":
             model = LogisticRegression(max_iter=1000)
         elif model_type == "Decision Tree":
-            model = DecisionTreeClassifier(max_depth=10, random_state=42)
+            model = DecisionTreeClassifier(max_depth=5, random_state=42)
         elif model_type == "Gradient Boosting":
             model = GradientBoostingClassifier(random_state=42)
+        elif model_type == "KNN":
+            model = KNeighborsClassifier(n_neighbors=5)
             
     elif task_type == "regression":
          if model_type == "Random Forest":
@@ -45,9 +48,11 @@ def train_model(X_train, y_train, X_val, y_val, model_type="Random Forest", task
          elif model_type == "Linear Regression":
             model = LinearRegression()
          elif model_type == "Decision Tree":
-            model = DecisionTreeRegressor(max_depth=10, random_state=42)
+            model = DecisionTreeRegressor(max_depth=5, random_state=42)
          elif model_type == "Gradient Boosting":
             model = GradientBoostingRegressor(random_state=42)
+         elif model_type == "KNN":
+            model = KNeighborsRegressor(n_neighbors=5)
             
     if model:
         # For classical models, we can concatenate train and val for better performance 
@@ -101,3 +106,44 @@ def evaluate_model(model, X_test, y_test, task_type):
                 metrics['ROC AUC'] = 0.0 # Failed (e.g. strict single class in test)
                 
     return metrics
+
+# --- Interpretation Helpers ---
+def get_lr_coeffs(model, feature_names):
+    """Returns DataFrame of Logistic Regression coefficients (Log-Odds)."""
+    if not isinstance(model, LogisticRegression):
+        return None
+    
+    # For binary classification, coef_ is shape (1, n_features)
+    # For multiclass, it's (n_classes, n_features)
+    if model.coef_.ndim == 1 or model.coef_.shape[0] == 1:
+        coeffs = model.coef_[0]
+        df_coeffs = pd.DataFrame({'Feature': feature_names, 'Coefficient': coeffs})
+        df_coeffs['Abs_Coeff'] = df_coeffs['Coefficient'].abs()
+        return df_coeffs.sort_values(by='Abs_Coeff', ascending=False)
+    else:
+        # Multiclass: take average impact or return all?
+        # Let's return the coeffs for the first class for simplicity or handling needs to be complex
+        # Returning max abs coeff across classes
+        coeffs = np.max(np.abs(model.coef_), axis=0)
+        df_coeffs = pd.DataFrame({'Feature': feature_names, 'Coefficient (Max Abs)': coeffs})
+        return df_coeffs.sort_values(by='Coefficient (Max Abs)', ascending=False)
+
+def get_dt_text(model, feature_names):
+    """Returns text representation of Decision Tree."""
+    if not isinstance(model, (DecisionTreeClassifier, DecisionTreeRegressor)):
+        return None
+    return export_text(model, feature_names=feature_names)
+
+def get_knn_neighbors(model, instance, X_train, n_neighbors=5):
+    """Returns indices and distances of nearest neighbors for a single instance."""
+    if not isinstance(model, (KNeighborsClassifier, KNeighborsRegressor)):
+        return None, None
+    
+    # Instance should be 2D array (1, n_features)
+    if isinstance(instance, pd.DataFrame):
+        instance = instance.values
+    if instance.ndim == 1:
+        instance = instance.reshape(1, -1)
+        
+    distances, indices = model.kneighbors(instance, n_neighbors=n_neighbors)
+    return distances[0], indices[0]

@@ -5,6 +5,7 @@ import torch
 import numpy as np
 import pandas as pd
 import argparse
+import shutil
 
 # Ensure TALENT is in path
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -23,6 +24,7 @@ class TalentModel:
         'SwitchTab': 'switchtab',
         'TabNet': 'tabnet',
         'TabR': 'tabr',
+        'MLP': 'mlp',
         'TabPFN': 'tabpfn',
         # Fallbacks or internal names
         'ftt': 'ftt',
@@ -35,12 +37,17 @@ class TalentModel:
 
     def __init__(self, model_type, data_dir="data/current_dataset", random_state=42):
         # Normalize model type
-        self.model_type = self.MODEL_MAPPING.get(model_type, model_type.lower())
+        self.model_type_str = model_type
+        self.internal_name = self.MODEL_MAPPING.get(model_type, model_type.lower())
         self.data_dir = data_dir
         self.random_state = random_state
-        self.output_dir = os.path.join(data_dir, "models", self.model_type)
-        if not os.path.exists(self.output_dir):
-            os.makedirs(self.output_dir)
+        self.output_dir = os.path.join("results", self.internal_name)
+        self.model = None
+        self.args = None
+        
+        # Ensure config exists for "current_dataset"
+        # Ensure config exists for "current_dataset"
+        self._ensure_config_exists()
             
         with open(os.path.join(data_dir, "info.json"), 'r') as f:
             self.info = json.load(f)
@@ -48,7 +55,55 @@ class TalentModel:
         self.task_type = self.info['task_type']
         self.method = None
         self.args = None
+        self.model_type = self.internal_name # Alias for compatibility
+
+    def _ensure_config_exists(self):
+        """
+        Copies the default config for the model to the 'current_dataset' config location
+        so that TALENT can find it.
+        """
+        # Paths based on TALENT structure
+        # Source: TALENT/TALENT/configs/model/default.json ?? NO, usually configs/default/model.json or configs/model.json
+        # Let's assume standard: TALENT/TALENT/configs/method/default.json based on repo structure usually
+        # But user said: TALENT/configs/default/ (ftt.json)
+        # We found: TALENT/TALENT/configs
         
+        # Let's try to find the source config
+        config_src = os.path.join(TALENT_ROOT, "TALENT", "configs", self.internal_name, "default.json")
+        
+        # Taking a guess based on user prompt "TALENT/configs/default/ (ftt.json)"
+        # If the user is right about 'default' folder:
+        config_src_default = os.path.join(TALENT_ROOT, "TALENT", "configs", "default", f"{self.internal_name}.json")
+        
+        if os.path.exists(config_src_default):
+            config_src = config_src_default
+        
+        # Destination: TALENT/TALENT/configs/method/dataset.json or similar?
+        # get_deep_args(method, dataset) usually looks for configs/method/dataset.json OR configs/dataset.json
+        
+        # Let's try to create a config for "current_dataset" in the expected location
+        # If we pass dataset="current_dataset", TALENT likely looks for:
+        # configs/method/current_dataset.json  OR configs/current_dataset.json
+        
+        # We will create it in: TALENT/TALENT/configs/{method}/current_dataset.json
+        config_dir = os.path.join(TALENT_ROOT, "TALENT", "configs", self.internal_name)
+        if not os.path.exists(config_dir):
+            os.makedirs(config_dir, exist_ok=True)
+            
+        config_dst = os.path.join(config_dir, "current_dataset.json")
+        
+        if os.path.exists(config_src):
+            try:
+                shutil.copy(config_src, config_dst)
+                # print(f"Copied config from {config_src} to {config_dst}")
+            except Exception as e:
+                print(f"Error copying config: {e}")
+        else:
+            # Fallback: create a basic dummy config if source not found (risky but better than crash)
+            print(f"Warning: Default config not found at {config_src}. creating empty.")
+            with open(config_dst, 'w') as f:
+                json.dump({}, f)
+
     def _prepare_args(self):
         # Mock Argparse Namespace
         # We use get_deep_args but we need to override many things
@@ -61,7 +116,7 @@ class TalentModel:
         
         # We will mock sys.argv
         original_argv = sys.argv
-        sys.argv = ['talent_wrapper.py', '--model_type', self.model_type, '--dataset', 'current_dataset']
+        sys.argv = ['talent_wrapper.py', '--model_type', self.internal_name, '--dataset', 'current_dataset']
         
         try:
             # We must trick TALENT into finding a config.

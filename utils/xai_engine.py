@@ -196,3 +196,31 @@ def calculate_consistency(shap_vals, lime_exp, feature_names):
         corr = 1.0
         
     return corr, df_comp
+
+from sklearn.inspection import permutation_importance
+from sklearn.metrics import accuracy_score, mean_squared_error
+
+def compute_permutation_importance(model, X_val, y_val, task_type='classification'):
+    """
+    Computes global permutation feature importance.
+    Returns: df_importance (Feature, Importance_Mean, Importance_Std)
+    """
+    scoring = 'accuracy'
+    if task_type == 'regression':
+        scoring = 'neg_root_mean_squared_error'
+        
+    # Check if model has score method, if not, wrapping might be needed or relying on scoring string
+    # Sklearn permutation_importance works with scoring string if model has predict.
+    
+    try:
+        r = permutation_importance(model, X_val, y_val, n_repeats=5, random_state=42, scoring=scoring)
+        
+        df_imp = pd.DataFrame({
+            'Feature': X_val.columns,
+            'Importance': r.importances_mean,
+            'Std': r.importances_std
+        })
+        return df_imp.sort_values(by='Importance', ascending=False)
+    except Exception as e:
+        print(f"Permutation Importance Error: {e}")
+        return pd.DataFrame()
